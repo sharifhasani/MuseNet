@@ -2,7 +2,7 @@
 python train.py \
 --name='three_view_long_share_d0.5_256_s1_google_lr0.005_spade_v24.11_210ep_weather_0110000_alpha1_test' \
 --experiment_name='three_view_long_share_d0.5_256_s1_google_lr0.005_spade_v24.11_210ep_weather_0110000_alpha1_test' \
---data_dir='/home/wangtingyu/datasets/University-Release/train' \
+--data_dir='/home/disk/reid-survey/codes/RK-Net-main/data/building' \
 --views=3 \
 --droprate=0.5 \
 --extra \
@@ -20,11 +20,11 @@ python train.py \
 --alpha=1 \
 --adain='a'
 
-python test_iaa.py \
---name='three_view_long_share_d0.5_256_s1_google_lr0.005_spade_v24.11_210ep_weather_0110000_alpha1_test' \
---test_dir='/home/wangtingyu/datasets/University-Release/test' \
---iaa \
---gpu_ids='2'
+# python test_iaa.py \
+# --name='three_view_long_share_d0.5_256_s1_google_lr0.005_spade_v24.11_210ep_weather_0110000_alpha1_test' \
+# --test_dir='/home/wangtingyu/datasets/University-Release/test' \
+# --iaa \
+# --gpu_ids='2'
 
 
 # training ibn net
