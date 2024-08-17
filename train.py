@@ -255,38 +255,44 @@ if opt.DA:
 
 print(transform_train_list)
 data_transforms = {
-    'train': transforms.Compose( transform_train_list ),
+    'train': transforms.Compose(transform_train_list),
     'val': transforms.Compose(transform_val_list),
-    'satellite': transforms.Compose(transform_satellite_list) }
+    'sat': transforms.Compose(transform_satellite_list)
+}
 
 
 train_all = ''
 if opt.train_all:
      train_all = '_all'
 
-image_datasets = {}
-image_datasets['satellite'] = datasets.ImageFolder(os.path.join(data_dir, 'satellite'),
-                                          data_transforms['satellite'])
-# image_datasets['satellite'] = ImageFolder_iaa(os.path.join(data_dir, 'satellite'),
-#                                           data_transforms['satellite'], iaa_transform=iaa_color_transform)
-image_datasets['street'] = datasets.ImageFolder(os.path.join(data_dir, 'street'),
-                                          data_transforms['train'])
-if opt.iaa:
-    print('-----------------using iaa to augment the drone image----------------------------')
-    if opt.multi_weather:
-        print('-----------------using multiple weather to augment the drone image----------------------------')
-        image_datasets['drone'] = ImageFolder_iaa_multi_weather(os.path.join(data_dir, 'drone'), transform=transform_iaa_drone_list,
-                                                iaa_transform=iaa_drone_transform, iaa_weather_list=iaa_weather_list, batchsize=opt.batchsize, shuffle=True, norm=opt.norm, select=True)
-    else:
-        image_datasets['drone'] = ImageFolder_iaa_selectID(os.path.join(data_dir, 'drone'), transform=transform_iaa_drone_list,
-                                                iaa_transform=iaa_drone_transform, norm=opt.norm)
+# image_datasets = {}
+# image_datasets['satellite'] = datasets.ImageFolder(os.path.join(data_dir, 'satellite'),
+#                                           data_transforms['satellite'])
+# # image_datasets['satellite'] = ImageFolder_iaa(os.path.join(data_dir, 'satellite'),
+# #                                           data_transforms['satellite'], iaa_transform=iaa_color_transform)
+# image_datasets['street'] = datasets.ImageFolder(os.path.join(data_dir, 'street'),
+#                                           data_transforms['train'])
+# if opt.iaa:
+#     print('-----------------using iaa to augment the drone image----------------------------')
+#     if opt.multi_weather:
+#         print('-----------------using multiple weather to augment the drone image----------------------------')
+#         image_datasets['drone'] = ImageFolder_iaa_multi_weather(os.path.join(data_dir, 'drone'), transform=transform_iaa_drone_list,
+#                                                 iaa_transform=iaa_drone_transform, iaa_weather_list=iaa_weather_list, batchsize=opt.batchsize, shuffle=True, norm=opt.norm, select=True)
+#     else:
+#         image_datasets['drone'] = ImageFolder_iaa_selectID(os.path.join(data_dir, 'drone'), transform=transform_iaa_drone_list,
+#                                                 iaa_transform=iaa_drone_transform, norm=opt.norm)
 
-else:
-    image_datasets['drone'] = datasets.ImageFolder(os.path.join(data_dir, 'drone'),
-                                              data_transforms['train'])
-image_datasets['google'] = datasets.ImageFolder(os.path.join(data_dir, 'google'),
-                                          data_transforms['train'])
+# else:
+#     image_datasets['drone'] = datasets.ImageFolder(os.path.join(data_dir, 'drone'),
+#                                               data_transforms['train'])
+# image_datasets['google'] = datasets.ImageFolder(os.path.join(data_dir, 'google'),
+#                                           data_transforms['train'])
 
+
+image_datasets = {
+    'sat': datasets.ImageFolder(os.path.join(data_dir, 'sat'), data_transforms['sat']),
+    'side': datasets.ImageFolder(os.path.join(data_dir, 'side'), data_transforms['train'])
+}
 
 # def _init_fn(worker_id):
 #     np.random.seed(int(opt.seed)+worker_id)
@@ -296,10 +302,10 @@ image_datasets['google'] = datasets.ImageFolder(os.path.join(data_dir, 'google')
 #                 for x in ['satellite', 'street', 'drone', 'google']}
 # else:
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=opt.batchsize,
-                                            shuffle=True, num_workers=8, pin_memory=False) # 8 workers may work faster
-            for x in ['satellite', 'street', 'drone', 'google']}
-dataset_sizes = {x: len(image_datasets[x]) for x in ['satellite', 'street', 'drone', 'google']}
-class_names = image_datasets['street'].classes
+                                             shuffle=True, num_workers=2, pin_memory=True)
+              for x in ['sat', 'side']}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['sat', 'side']}
+class_names = image_datasets['side'].classes  # assuming the classes are the same in both folders
 print(dataset_sizes)
 use_gpu = torch.cuda.is_available()
 
