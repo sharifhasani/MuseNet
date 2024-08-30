@@ -1080,7 +1080,7 @@ class three_view_net(nn.Module):
         if norm == 'ada-ibn':
             self._w1, self._b1, self._w2, self._b2, self._w3, self._b3 = pretrained_in_weight(True)
 
-    def forward(self, x1, x2, x3, x4 = None): # x4 is extra data
+    def forward(self, x1, x2, x3=None, x4 = None): # x4 is extra data
         if self.LPN:
             if x1 is None:
                 y1 = None

@@ -375,7 +375,7 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
     #best_model_wts = model.state_dict()
     #best_acc = 0.0
     warm_up = 0.1 # We start from the 0.1*lrRate
-    warm_iteration = round(dataset_sizes['satellite']/opt.batchsize)*opt.warm_epoch # first 5 epoch
+    warm_iteration = round(dataset_sizes['sat']/opt.batchsize)*opt.warm_epoch # first 5 epoch
     if opt.circle:
         criterion_circle = CircleLoss(m=0.25, gamma=64)
     for epoch in range(num_epochs-start_epoch):
@@ -404,32 +404,14 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                 if opt.style_loss:
                     running_style_loss = 0.0
             # Iterate over data.
-            for data,data2,data3,data4 in zip(dataloaders['satellite'], dataloaders['street'], dataloaders['drone'], dataloaders['google']) :
-                # get the inputs
+            for data, data2 in zip(dataloaders['sat'], dataloaders['side']):
                 inputs, labels = data
                 inputs2, labels2 = data2
-                inputs4, labels4 = data4
-                if opt.norm == 'ada-ibn' or opt.norm == 'spade':
-                    inputs3, labels3, wlabels3 = data3
-                    wlabels1 = torch.zeros_like(wlabels3)
-                else:
-                    inputs3, labels3 = data3
-                now_batch_size,c,h,w = inputs.shape
-                if now_batch_size<opt.batchsize: # skip the last batch
+                now_batch_size, c, h, w = inputs.shape
+                if now_batch_size < opt.batchsize: # skip the last batch
                     continue
                 if use_gpu:
-                    inputs = Variable(inputs.cuda().detach())
-                    inputs2 = Variable(inputs2.cuda().detach())
-                    inputs3 = Variable(inputs3.cuda().detach())
-                    labels = Variable(labels.cuda().detach())
-                    labels2 = Variable(labels2.cuda().detach())
-                    labels3 = Variable(labels3.cuda().detach())
-                    if opt.norm == 'ada-ibn' or opt.norm == 'spade':
-                        wlabels3 = Variable(wlabels3.cuda().detach())
-                        wlabels1 = Variable(wlabels1.cuda().detach())
-                    if opt.extra_Google:
-                        inputs4 = Variable(inputs4.cuda().detach())
-                        labels4 = Variable(labels4.cuda().detach())
+                    inputs, inputs2, labels, labels2 = [x.cuda() for x in (inputs, inputs2, labels, labels2)]
                 else:
                     inputs, labels = Variable(inputs), Variable(labels)
  
@@ -450,13 +432,13 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                         # torch.autograd.set_detect_anomaly(True)
                         if opt.extra_Google:
                             if opt.norm == 'ada-ibn':
-                               outputs, outputs2, outputs3, outputs4, sout_w, dout_w = model(inputs, inputs2, inputs3, inputs4)
+                               outputs, outputs2, outputs3, outputs4, sout_w, dout_w = model(inputs, inputs2)
                             elif opt.norm == 'spade':
-                                outputs, outputs2, outputs3, outputs4, sout_w, dout_w = model(inputs, inputs2, inputs3, inputs4)
+                                outputs, outputs2, outputs3, outputs4, sout_w, dout_w = model(inputs, inputs2, inputs, inputs2)
                             else:
-                                outputs, outputs2, outputs3, outputs4 = model(inputs, inputs2, inputs3, inputs4)
+                                outputs, outputs2, outputs3, outputs4 = model(inputs, inputs2)
                         else:
-                            outputs, outputs2, outputs3 = model(inputs, inputs2, inputs3)
+                            outputs, outputs2, outputs3 = model(inputs, inputs2)
 
                 if not opt.LPN and opt.circle:
                     # print('------------------------using circle loss--------------------------------')
@@ -477,24 +459,10 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                     loss2_ce = criterion(logits2, labels2)
                     loss2_cir = criterion_circle(*convert_label_to_similarity(ff2, labels2)) / now_batch_size
 
-                    loss3_ce = criterion(logits3, labels3)
-                    loss3_cir = criterion_circle(*convert_label_to_similarity(ff3, labels3)) / now_batch_size
-
-                    loss_ce = loss1_ce + loss2_ce + loss3_ce
-                    loss_cir = 2*(loss1_cir + loss2_cir + loss3_cir)
+                    loss_ce = loss1_ce + loss2_ce
+                    loss_cir = 2*(loss1_cir + loss2_cir)
                     loss = loss_ce + loss_cir
-                    if opt.extra_Google:
-                        logits4, ff4 = outputs4
-                        ff4 = F.normalize(ff4)
-                        loss4 = criterion(logits4, labels4) + 2*criterion_circle(*convert_label_to_similarity(ff4, labels4)) / now_batch_size
-                        loss = loss + loss4
-                    if opt.norm == 'ada-ibn':
-                        _, s_pred_w = torch.max(sout_w.data, 1)
-                        _, d_pred_w = torch.max(dout_w.data, 1)
-                        loss_s = criterion(sout_w, wlabels1)
-                        loss_d = criterion(dout_w, wlabels3)
-                        loss_w = 1 * (loss_d + loss_s)
-                        loss = loss + loss_w
+
                 elif not opt.LPN and not opt.circle:
                     _, preds = torch.max(outputs.data, 1)
                     _, preds2 = torch.max(outputs2.data, 1)
@@ -503,19 +471,8 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                         loss = criterion(outputs, labels) + criterion(outputs2, labels2)
                     elif opt.views == 3:
                         _, preds3 = torch.max(outputs3.data, 1)
-                        loss = criterion(outputs, labels) + 1*criterion(outputs2, labels2) + criterion(outputs3, labels3)
-                        if opt.extra_Google:
-                            loss = loss + 1*criterion(outputs4, labels4)
-                        if opt.norm == 'ada-ibn' or opt.norm == 'spade':
-                            _, s_pred_w = torch.max(sout_w.data, 1)
-                            _, d_pred_w = torch.max(dout_w.data, 1)
-                            loss_s = criterion(sout_w, wlabels1)
-                            loss_d = criterion(dout_w, wlabels3)
-                            loss_w = opt.alpha*(loss_d + loss_s)
-                            loss = loss + loss_w
-                            if opt.style_loss:
-                                style_loss = calc_style_loss(in_s, in_d)
-                                loss = loss + 1*style_loss
+                        loss = criterion(outputs, labels) + 1*criterion(outputs2, labels2)
+
                 else:
                     # print('------------------------using LPN--------------------------------')
                     preds, loss = one_LPN_output(outputs, labels, criterion, opt.block)
@@ -524,18 +481,7 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                     if opt.views == 2:       # no implement this LPN model
                         loss = loss + loss2
                     elif opt.views == 3:
-                        preds3, loss3 = one_LPN_output(outputs3, labels3, criterion, opt.block)
-                        loss = loss + loss2 + loss3
-                        if opt.extra_Google:
-                            _, loss4 = one_LPN_output(outputs4, labels4, criterion, opt.block)
-                            loss = loss + loss4
-                        if opt.norm == 'spade':
-                            _, s_pred_w = torch.max(sout_w.data, 1)
-                            _, d_pred_w = torch.max(dout_w.data, 1)
-                            loss_s = criterion(sout_w, wlabels1)
-                            loss_d = criterion(dout_w, wlabels3)
-                            loss_w = 1*(loss_d + loss_s)
-                            loss = loss + loss_w
+                        loss = loss + loss2
 
                 # backward + optimize only if in training phase
                 if epoch<opt.warm_epoch and phase == 'train': 
@@ -566,31 +512,23 @@ def train_model(model, model_test, criterion, optimizer, scheduler, num_epochs=2
                     running_loss += loss.data[0] * now_batch_size
                 running_corrects += float(torch.sum(preds == labels.data))
                 running_corrects2 += float(torch.sum(preds2 == labels2.data))
-                if opt.views == 3:
-                    running_corrects3 += float(torch.sum(preds3 == labels3.data))
-                if opt.norm == 'ada-ibn' or opt.norm=='spade':
-                    running_weather_loss += loss_w.item() * now_batch_size
-                    running_corrects_s_w += float(torch.sum(s_pred_w == wlabels1))
-                    running_corrects_d_w += float(torch.sum(d_pred_w == wlabels3))
-                    if opt.style_loss:
-                        running_style_loss += style_loss.item() * now_batch_size
 
-            epoch_loss = running_loss / dataset_sizes['satellite']
-            epoch_acc = running_corrects / dataset_sizes['satellite']
-            epoch_acc2 = running_corrects2 / dataset_sizes['satellite']
+            epoch_loss = running_loss / dataset_sizes['sat']
+            epoch_acc = running_corrects / dataset_sizes['sat']
+            epoch_acc2 = running_corrects2 / dataset_sizes['sat']
             if opt.circle:
                 epoch_loss_ce = running_loss_ce / dataset_sizes['satellite']
                 epoch_loss_cir = running_loss_cir / dataset_sizes['satellite']
             if opt.norm == 'ada-ibn' or opt.norm == 'spade':
-                epoch_weather_loss = running_weather_loss / dataset_sizes['satellite']
-                epoch_acc_sw = running_corrects_s_w / dataset_sizes['satellite']
-                epoch_acc_dw = running_corrects_d_w / dataset_sizes['satellite']
+                epoch_weather_loss = running_weather_loss / dataset_sizes['sat']
+                epoch_acc_sw = running_corrects_s_w / dataset_sizes['sat']
+                epoch_acc_dw = running_corrects_d_w / dataset_sizes['sat']
                 if opt.style_loss:
-                    epoch_style_loss = running_style_loss / dataset_sizes['satellite']
+                    epoch_style_loss = running_style_loss / dataset_sizes['sat']
             if opt.views == 2:
                 print('{} Loss: {:.4f} Satellite_Acc: {:.4f}  Street_Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc, epoch_acc2))
             elif opt.views == 3:
-                epoch_acc3 = running_corrects3 / dataset_sizes['satellite']
+                epoch_acc3 = running_corrects3 / dataset_sizes['sat']
                 if opt.norm == 'ada-ibn' or opt.norm == 'spade':
                     if opt.style_loss:
                         print(
@@ -683,7 +621,7 @@ elif opt.views == 3:
 
 opt.nclasses = len(class_names)
 
-print(model)
+# print(model)
 # For resume:
 if start_epoch>=40:
     opt.lr = opt.lr*0.1
